@@ -435,23 +435,65 @@ const progressEl = document.getElementById('app-progress');
 const statusSub = document.getElementById('app-status-subtitle');
 
 console.log('🔍 Elementos encontrados:', { emergencyBtn, progressEl, statusSub });
-
 let holdInterval = null;
 let progressVal = 0;
 let sosTriggered = false;
 
-function triggerSOS() {
-  console.log('🚨 ¡triggerSOS() ejecutada!');
-  if (sosTriggered) {
-    console.log('⛔ SOS ya activado, ignorando.');
-    return;
-  }
-  sosTriggered = true;
+function startHoldGeneric() {
+  if (sosTriggered) return;
+  if (holdInterval) clearInterval(holdInterval);
+  progressVal = 0;
+  const progressEl = document.getElementById('app-progress');
+  const statusSub = document.getElementById('app-status-subtitle');
+  if (progressEl) progressEl.style.width = '0%';
+  if (statusSub) statusSub.textContent = 'Soltá para cancelar…';
+  console.log('⏳ Iniciando cuenta regresiva (3 segundos)');
 
+  holdInterval = setInterval(() => {
+    progressVal = Math.min(progressVal + 100/30, 100);
+    const progressEl = document.getElementById('app-progress');
+    if (progressEl) progressEl.style.width = progressVal + '%';
+    if (progressVal >= 100) {
+      clearInterval(holdInterval);
+      holdInterval = null;
+      console.log('✅ ¡Tiempo completado! Llamando a triggerSOS()...');
+      triggerSOS();
+    }
+  }, 100);
+}
+
+function cancelHoldGeneric() {
+  if (sosTriggered) return;
+  clearInterval(holdInterval);
+  holdInterval = null;
+  progressVal = 0;
+  const progressEl = document.getElementById('app-progress');
+  const statusSub = document.getElementById('app-status-subtitle');
+  if (progressEl) progressEl.style.width = '0%';
+  if (statusSub) statusSub.textContent = 'Mantené presionado 3 segundos';
+  console.log('🔄 Presión cancelada');
+  
+function triggerSOS() {
+  if (sosTriggered) return;
+  sosTriggered = true;
+  const statusSub = document.getElementById('app-status-subtitle');
   if (statusSub) {
     statusSub.textContent = '🚨 ¡EMERGENCIA ACTIVADA!';
     statusSub.style.color = 'var(--green)';
   }
+  console.log('📨 Llamando a enviarNtfy...');
+  enviarNtfy(-34.6037, -58.3816);  // o con coordenadas reales si tenés GPS
+
+  setTimeout(() => {
+    sosTriggered = false;
+    const progressEl = document.getElementById('app-progress');
+    if (progressEl) progressEl.style.width = '0%';
+    if (statusSub) {
+      statusSub.textContent = 'Mantené presionado 3 segundos';
+      statusSub.style.color = '';
+    }
+  }, 5000);
+}
 
   // Mostrar tarjetas flotantes
   const fcLoc = document.getElementById('fc-loc');
@@ -566,19 +608,19 @@ if (emergencyBtn) {
 
 // ── ATAJO CON LA RUEDITA (clic medio) ──
 document.addEventListener('mousedown', (e) => {
-  if (e.button === 1) {
+  if (e.button === 1) {  // 1 = botón medio
     e.preventDefault();
     e.stopPropagation();
     console.log('🖱️ clic medio (ruedita)');
     if (holdInterval) cancelHoldGeneric();
-    startHoldGeneric();
+    startHoldGeneric();  // Inicia la cuenta regresiva de 3 segundos
   }
 });
 
 document.addEventListener('mouseup', (e) => {
   if (e.button === 1) {
     console.log('🖱️ mouseup (medio)');
-    cancelHoldGeneric();
+    cancelHoldGeneric();  // Cancela si soltás antes
   }
 });
 
@@ -590,7 +632,7 @@ document.addEventListener('mouseleave', () => {
 });
 
 document.addEventListener('auxclick', (e) => {
-  if (e.button === 1) e.preventDefault();
+  if (e.button === 1) e.preventDefault();  // Evita que abra el menú contextual
 });
 
 // ── 📨 ENVÍO A NTFY.SH (con logs y SIN emojis en headers) ──
