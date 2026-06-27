@@ -20,12 +20,12 @@ let map = null;
 let userMarker = null;
 let trackingPath = null;
 
-// Canales de alerta
+// Canales de alerta (reemplazamos 'push' por 'ntfy')
 let alertChannels = {
   sms: true,
   whatsapp: false,
   email: false,
-  push: false
+  ntfy: false   // ← canal para ntfy.sh
 };
 
 // ========== INICIALIZACION ==========
@@ -72,7 +72,6 @@ async function buildSmartMessage(location) {
     year: 'numeric'
   });
   
-  // Obtener nivel de bateria
   let batteryLevel = 'N/A';
   try {
     if (navigator.getBattery) {
@@ -83,7 +82,6 @@ async function buildSmartMessage(location) {
     batteryLevel = 'N/A';
   }
   
-  // Construir URL de Google Maps
   let locationInfo = 'Ubicacion no disponible';
   let mapsUrl = '';
   if (location && location.lat && location.lon) {
@@ -91,11 +89,9 @@ async function buildSmartMessage(location) {
     locationInfo = mapsUrl;
   }
   
-  // Obtener BPM simulado (en hardware real vendría del sensor)
   const bpmEl = document.getElementById('app-bpm-value');
   const bpmValue = bpmEl ? bpmEl.textContent : '72';
   
-  // Reemplazar placeholders en el mensaje
   let message = emergencyMessage
     .replace('{TIME}', timeStr)
     .replace('{BATTERY}', batteryLevel)
@@ -115,9 +111,8 @@ function startTracking() {
     statusEl.innerHTML = '<span class="tracking-dot"></span> Rastreo activo - Enviando ubicacion cada 10s';
   }
   
-  // Enviar ubicacion cada 10 segundos por 3 minutos
   let trackingDuration = 0;
-  const maxDuration = 180000; // 3 minutos
+  const maxDuration = 180000;
   
   trackingInterval = setInterval(async () => {
     trackingDuration += 10000;
@@ -137,21 +132,16 @@ function startTracking() {
       };
       
       trackingHistory.push(trackingPoint);
-      localStorage.setItem(TRACKING_KEY, JSON.stringify(trackingHistory.slice(-50))); // Mantener ultimos 50 puntos
+      localStorage.setItem(TRACKING_KEY, JSON.stringify(trackingHistory.slice(-50)));
       
-      // Actualizar mapa
       updateMapPosition(trackingPoint);
-      
-      // Enviar al backend
       await sendTrackingPoint(trackingPoint);
-      
-      // Actualizar historial visual
       renderLocationHistory();
       
     } catch (e) {
       console.error('Error obteniendo ubicacion:', e);
     }
-  }, 10000); // Cada 10 segundos
+  }, 10000);
 }
 
 function stopTracking() {
@@ -194,15 +184,13 @@ function initMap() {
   const mapContainer = document.getElementById('live-map');
   if (!mapContainer) return;
   
-  // Usar Leaflet para el mapa
   if (typeof L !== 'undefined') {
-    map = L.map('live-map').setView([-34.6037, -58.3816], 13); // Buenos Aires por defecto
+    map = L.map('live-map').setView([-34.6037, -58.3816], 13);
     
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       attribution: '&copy; OpenStreetMap'
     }).addTo(map);
     
-    // Intentar obtener ubicacion actual
     navigator.geolocation.getCurrentPosition(
       (pos) => {
         const lat = pos.coords.latitude;
@@ -213,7 +201,6 @@ function initMap() {
           .bindPopup('Tu ubicacion actual')
           .openPopup();
         
-        // Inicializar path de tracking
         trackingPath = L.polyline([], { color: '#7c3aed', weight: 3 }).addTo(map);
       },
       () => {
@@ -221,7 +208,6 @@ function initMap() {
       }
     );
   } else {
-    // Fallback si Leaflet no esta disponible
     mapContainer.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--fg-muted);">Cargando mapa...</div>';
   }
 }
@@ -231,19 +217,16 @@ function updateMapPosition(point) {
   
   const latlng = [point.lat, point.lon];
   
-  // Actualizar marcador
   if (userMarker) {
     userMarker.setLatLng(latlng);
   } else {
     userMarker = L.marker(latlng).addTo(map);
   }
   
-  // Actualizar path
   if (trackingPath) {
     trackingPath.addLatLng(latlng);
   }
   
-  // Centrar mapa
   map.setView(latlng, map.getZoom());
 }
 
@@ -269,7 +252,7 @@ function renderLocationHistory() {
   }).join('');
 }
 
-// ========== MULTICANAL DE ALERTA ==========
+// ========== MULTICANAL DE ALERTA (con ntfy en lugar de push) ==========
 function renderChannels() {
   const container = document.getElementById('channels-list');
   if (!container) return;
@@ -308,15 +291,16 @@ function renderChannels() {
       <div class="channel-toggle ${alertChannels.email ? 'active' : ''}" id="toggle-email"></div>
     </div>
     
-    <div class="channel-card" onclick="toggleChannel('push')">
-      <div class="channel-icon push">
+    <!-- Canal ntfy (reemplaza a Push) -->
+    <div class="channel-card" onclick="toggleChannel('ntfy')">
+      <div class="channel-icon ntfy" style="background:#2d9cdb;">
         <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
       </div>
       <div class="channel-info">
-        <h3>Notificacion Push</h3>
-        <p>Alerta en el navegador</p>
+        <h3>ntfy.sh</h3>
+        <p>Notificación al topic SafeHeart</p>
       </div>
-      <div class="channel-toggle ${alertChannels.push ? 'active' : ''}" id="toggle-push"></div>
+      <div class="channel-toggle ${alertChannels.ntfy ? 'active' : ''}" id="toggle-ntfy"></div>
     </div>
   `;
 }
@@ -327,7 +311,35 @@ function toggleChannel(channel) {
   renderChannels();
 }
 
-// ========== ENVIO DE ALERTAS MULTICANAL ==========
+// ========== ENVÍO A NTFY.SH (corregido, sin emojis en headers) ==========
+function sendNtfyAlert(message, location) {
+  let ubicacionTexto = 'Ubicación no disponible';
+  if (location && location.lat && location.lon) {
+    ubicacionTexto = `https://maps.google.com/?q=${location.lat},${location.lon}`;
+  }
+  
+  const mensajeCompleto = message + '\n\n📍 ' + ubicacionTexto;
+
+  return fetch('https://ntfy.sh/SafeHeart', {
+    method: 'POST',
+    headers: {
+      'Title': 'SOS SafeHeart',        // ✅ sin emoji
+      'Priority': 'urgent',
+      'Tags': 'warning,red_circle,ambulance'
+    },
+    body: mensajeCompleto
+  })
+  .then(response => {
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    console.log('✅ Notificación enviada a ntfy.sh');
+    return response.json();
+  })
+  .catch(error => {
+    console.error('❌ Error al enviar a ntfy:', error);
+  });
+}
+
+// ========== ENVIO DE ALERTAS MULTICANAL (con ntfy) ==========
 async function sendMultiChannelAlert(location, smartMessage) {
   const promises = [];
   
@@ -341,19 +353,20 @@ async function sendMultiChannelAlert(location, smartMessage) {
     promises.push(sendWhatsAppAlert(smartMessage.message));
   }
   
-  // Email (via backend)
+  // Email
   if (alertChannels.email) {
     promises.push(sendEmailAlert(smartMessage));
   }
   
-  // Push Notification
-  if (alertChannels.push) {
-    promises.push(sendPushNotification());
+  // ntfy.sh
+  if (alertChannels.ntfy) {
+    promises.push(sendNtfyAlert(smartMessage.message, location));
   }
   
   await Promise.allSettled(promises);
 }
 
+// ========== FUNCIONES DE ENVÍO ==========
 function sendSMSAlert(message) {
   const phones = contacts.map(c => formatPhoneForSMS(c.phone)).join(',');
   const smsUrl = `sms:${phones}?body=${encodeURIComponent(message)}`;
@@ -362,13 +375,12 @@ function sendSMSAlert(message) {
 }
 
 function sendWhatsAppAlert(message) {
-  // Enviar a cada contacto via WhatsApp Web
   contacts.forEach((contact, index) => {
     setTimeout(() => {
       const phone = contact.phone.replace(/[^\d+]/g, '');
       const waUrl = `https://wa.me/${phone}?text=${encodeURIComponent(message)}`;
       window.open(waUrl, '_blank');
-    }, index * 500); // Espaciar las ventanas
+    }, index * 500);
   });
   return Promise.resolve();
 }
@@ -390,35 +402,14 @@ async function sendEmailAlert(smartMessage) {
   }
 }
 
-async function sendPushNotification() {
-  if ('Notification' in window && Notification.permission === 'granted') {
-    new Notification('SafeHeart - EMERGENCIA', {
-      body: 'Se ha activado una alerta de emergencia',
-      icon: '/logo.png',
-      badge: '/logo.png',
-      vibrate: [200, 100, 200],
-      tag: 'emergency-alert'
-    });
-  }
-}
-
-// ========== NOTIFICACIONES PUSH ==========
+// ========== NOTIFICACIONES PUSH (opcional, ahora separado) ==========
 async function initPushNotifications() {
+  // Ya no se usa para ntfy, pero mantenemos la función por si se necesita para otras cosas
   if ('Notification' in window) {
     if (Notification.permission === 'default') {
-      // Mostrar boton para solicitar permisos
       const pushBtn = document.getElementById('enable-push-btn');
       if (pushBtn) {
-        pushBtn.style.display = 'block';
-        pushBtn.onclick = async () => {
-          const permission = await Notification.requestPermission();
-          if (permission === 'granted') {
-            pushBtn.style.display = 'none';
-            alertChannels.push = true;
-            localStorage.setItem(CHANNELS_KEY, JSON.stringify(alertChannels));
-            renderChannels();
-          }
-        };
+        pushBtn.style.display = 'none'; // Ocultamos porque ya no usamos push del navegador
       }
     }
   }
@@ -430,7 +421,6 @@ function setupFloatingSOS() {
   if (!floatingBtn) return;
   
   let floatingHoldTimer = null;
-  let floatingProgress = 0;
   
   floatingBtn.onmousedown = floatingBtn.ontouchstart = (e) => {
     e.preventDefault();
@@ -483,7 +473,6 @@ function initPWA() {
     }
   });
   
-  // Registrar Service Worker
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('/sw.js').catch(err => {
       console.log('Service Worker no registrado:', err);
@@ -510,7 +499,7 @@ function renderEmergencyTab() {
     btn.classList.add('pulse-glow');
     
     if (preview) {
-      let avatarsHtml = '<span>SMS a:</span><div class="avatars">';
+      let avatarsHtml = '<span>Alertas a:</span><div class="avatars">';
       contacts.slice(0, 4).forEach(c => {
         avatarsHtml += `<div class="avatar">${c.name.charAt(0).toUpperCase()}</div>`;
       });
@@ -582,7 +571,6 @@ async function activateEmergency() {
   if (statusSubtitle) statusSubtitle.textContent = 'Emergencia activada';
   if (progressBar) progressBar.classList.add('success');
 
-  // Obtener ubicacion y enviar alertas
   try {
     const position = await getCurrentPosition();
     const location = {
@@ -590,21 +578,15 @@ async function activateEmergency() {
       lon: position.coords.longitude
     };
     
-    // Construir mensaje inteligente
     const smartMessage = await buildSmartMessage(location);
     
     if (statusTitle) statusTitle.textContent = 'Enviando alertas...';
     
-    // Enviar alertas multicanal
     await sendMultiChannelAlert(location, smartMessage);
     
-    // Iniciar tracking
     startTracking();
-    
-    // Guardar emergencia en backend
     await saveEmergencyToBackend(location, smartMessage);
     
-    // Mostrar exito
     setTimeout(() => {
       playBeep(523, 100);
       setTimeout(() => playBeep(784, 200), 100);
@@ -617,7 +599,6 @@ async function activateEmergency() {
     }, 1000);
     
   } catch (error) {
-    // Si falla la ubicacion, enviar sin ella
     const smartMessage = await buildSmartMessage(null);
     await sendMultiChannelAlert(null, smartMessage);
     
@@ -855,7 +836,7 @@ function playBeep(freq = 800, duration = 200) {
   } catch (e) {}
 }
 
-// ========== LANDING PAGE FUNCTIONS ==========
+// ========== LANDING PAGE FUNCTIONS (para index.html) ==========
 let isActivated = false;
 let progress = 0;
 let holdTimer = null;
