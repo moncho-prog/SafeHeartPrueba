@@ -606,33 +606,40 @@ if (emergencyBtn) {
   console.error('❌ No se encontró el botón #app-emergency-btn');
 }
 
-// ── ATAJO CON LA RUEDITA (clic medio) ──
+// ── ATAJO CON LA RUEDITA (clic medio) en cualquier lugar ──
 document.addEventListener('mousedown', (e) => {
   if (e.button === 1) {  // 1 = botón medio
     e.preventDefault();
     e.stopPropagation();
-    console.log('🖱️ clic medio (ruedita)');
-    if (holdInterval) cancelHoldGeneric();
-    startHoldGeneric();  // Inicia la cuenta regresiva de 3 segundos
+    console.log('🖱️ clic medio (ruedita) detectado');
+    // Iniciar la cuenta regresiva (3 segundos)
+    if (typeof startHoldGeneric === 'function') {
+      startHoldGeneric();
+    } else {
+      console.error('❌ startHoldGeneric no está definida');
+    }
   }
 });
 
 document.addEventListener('mouseup', (e) => {
   if (e.button === 1) {
     console.log('🖱️ mouseup (medio)');
-    cancelHoldGeneric();  // Cancela si soltás antes
+    if (typeof cancelHoldGeneric === 'function') {
+      cancelHoldGeneric();
+    }
   }
 });
 
+// Si el mouse sale de la ventana, cancelar
 document.addEventListener('mouseleave', () => {
-  if (holdInterval) {
-    console.log('🖱️ mouseleave global');
+  if (typeof cancelHoldGeneric === 'function') {
     cancelHoldGeneric();
   }
 });
 
+// Prevenir el menú contextual del clic medio
 document.addEventListener('auxclick', (e) => {
-  if (e.button === 1) e.preventDefault();  // Evita que abra el menú contextual
+  if (e.button === 1) e.preventDefault();
 });
 
 // ── 📨 ENVÍO A NTFY.SH (con logs y SIN emojis en headers) ──
