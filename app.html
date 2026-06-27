@@ -1,0 +1,609 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <meta name="theme-color" content="#341539">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="description" content="SafeHeart - Emergencia para adultos mayores. Avisá a tu familia con un solo toque.">
+  <title>SafeHeart - App</title>
+  <link rel="manifest" href="manifest.json">
+  <link rel="shortcut icon" href="img/logo nuevo safeheart.jpeg" type="image/x-icon">
+  <link rel="stylesheet" href="styles.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="" />
+  <style>
+    :root { --font-display: 'Syne', sans-serif; --font-body: 'DM Sans', system-ui, sans-serif; }
+    body { font-family: var(--font-body); }
+    h1, h2, h3, .logo span { font-family: var(--font-display); }
+    .app-header .app-logo span { font-family: var(--font-display); font-weight: 700; }
+    
+    /* Logo en app header */
+    .app-logo-img {
+      width: 30px; height: 30px; border-radius: 8px; overflow: hidden;
+      border: 1.5px solid rgba(124,58,237,0.5);
+    }
+    .app-logo-img img { width: 100%; height: 100%; object-fit: cover; }
+
+    /* Watch display en app de emergencia */
+    .app-watch-display {
+      display: flex; flex-direction: column; align-items: center;
+      background: linear-gradient(180deg, #1a0a1e, #0d0612);
+      border: 2px solid var(--border); border-radius: 30px;
+      padding: 1.5rem 1.5rem 1rem;
+      box-shadow: 0 0 40px rgba(124,58,237,0.2);
+      margin-bottom: 1.5rem; width: 200px;
+    }
+    .app-watch-time {
+      font-family: var(--font-display);
+      font-size: 2rem; font-weight: 800; color: var(--fg);
+      text-shadow: 0 0 20px rgba(168,85,247,0.5);
+      letter-spacing: 0.05em; margin-bottom: 2px;
+    }
+    .app-watch-date {
+      font-size: 0.65rem; color: var(--fg-muted);
+      text-transform: uppercase; letter-spacing: 0.08em;
+      margin-bottom: 1rem;
+    }
+    .app-bpm-display {
+      display: flex; align-items: center; gap: 0.5rem;
+      background: rgba(124,58,237,0.1); border: 1px solid rgba(124,58,237,0.3);
+      border-radius: 20px; padding: 0.4rem 0.9rem;
+      margin-top: 1rem;
+    }
+    .app-bpm-heart { font-size: 1rem; animation: heartbeat 1.2s ease-in-out infinite; }
+    @keyframes heartbeat {
+      0%, 100% { transform: scale(1); }
+      25% { transform: scale(1.3); }
+      50% { transform: scale(1); }
+      75% { transform: scale(1.2); }
+    }
+    .app-bpm-value {
+      font-family: var(--font-display); font-size: 1.2rem; font-weight: 800; color: var(--fg);
+    }
+    .app-bpm-unit { font-size: 0.65rem; color: var(--fg-muted); text-transform: uppercase; }
+  </style>
+</head>
+<body class="app-body">
+  <div class="app-container">
+    <header class="app-header">
+      <a href="index.html" class="back-btn">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg>
+        <span>Volver</span>
+      </a>
+      <div class="app-logo">
+        <div class="app-logo-img">
+          <img src="img/logo nuevo safeheart.jpeg" alt="SafeHeart Logo">
+        </div>
+        <span>SafeHeart</span>
+      </div>
+      <div class="sms-indicator">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+        SMS
+      </div>
+    </header>
+
+    <main class="app-main">
+      <!-- Emergency Tab -->
+      <div id="tab-emergency" class="tab-content active">
+        <div class="emergency-container">
+          <div id="no-contacts-warning" class="warning-box" style="display:none;">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+            <p>Agregá contactos para activar el botón de emergencia</p>
+          </div>
+          
+          <div class="sms-info-box">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+            <span>Mensaje con hora, pulsaciones y GPS</span>
+          </div>
+
+          <!-- Mini reloj display -->
+          <div class="app-watch-display">
+            <div class="app-watch-time" id="app-watch-time">10:42</div>
+            <div class="app-watch-date" id="app-watch-date">Lun 12 May</div>
+            <button id="app-emergency-btn" class="app-emergency-btn pulse-glow" disabled>
+              <svg id="btn-icon-heart" width="80" height="80" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="1.5">
+                <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
+              </svg>
+              <svg id="btn-icon-check" width="80" height="80" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" style="display:none;"><polyline points="20 6 9 17 4 12"/></svg>
+            </button>
+            <div class="app-bpm-display">
+              <span class="app-bpm-heart">❤️</span>
+              <span class="app-bpm-value" id="app-bpm-value">72</span>
+              <span class="app-bpm-unit">bpm</span>
+            </div>
+          </div>
+
+          <div class="app-progress-container">
+            <div id="app-progress" class="app-progress-bar"></div>
+          </div>
+
+          <div class="app-status">
+            <p id="app-status-subtitle">Mantené presionado 3 segundos</p>
+            <h3 id="app-status-title">SafeHeart Listo</h3>
+          </div>
+
+          <div id="contacts-preview" class="contacts-preview"></div>
+        </div>
+      </div>
+
+      <!-- Contacts Tab -->
+      <div id="tab-contacts" class="tab-content">
+        <div class="contacts-container">
+          <div class="sms-notice">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+            <p>Los contactos recibirán un SMS con tu ubicación GPS, pulsaciones cardíacas y hora exacta al activar la emergencia.</p>
+          </div>
+          <div class="contacts-header">
+            <div>
+              <h2>Contactos de Emergencia</h2>
+              <p id="contacts-count">0 contactos guardados</p>
+            </div>
+            <button id="add-contact-btn" class="add-btn">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            </button>
+          </div>
+          <form id="contact-form" class="contact-form" style="display:none;">
+            <div class="form-group">
+              <label><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg> Nombre</label>
+              <input type="text" id="contact-name" placeholder="Ej: Hijo/a, Enfermero/a" required>
+            </div>
+            <div class="form-group">
+              <label><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.11 11.7 19.79 19.79 0 0 1 1.04 2.9A2 2 0 0 1 3 .82h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg> Teléfono</label>
+              <input type="tel" id="contact-phone" placeholder="+54 9 11 1234-5678" required>
+            </div>
+            <div class="form-group">
+              <label><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg> Email (opcional)</label>
+              <input type="email" id="contact-email" placeholder="ejemplo@email.com">
+            </div>
+            <div class="form-group">
+              <label><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg> Relación</label>
+              <input type="text" id="contact-relationship" placeholder="Hijo/a, Enfermero/a, Médico, etc.">
+            </div>
+            <p id="form-error" class="form-error"></p>
+            <button type="submit" class="submit-btn">Agregar Contacto</button>
+          </form>
+          <div id="empty-contacts" class="empty-state" style="display:none;">
+            <div class="empty-icon">
+              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+            </div>
+            <h3>Sin contactos</h3>
+            <p>Agregá hijos, enfermeros o cuidadores para que reciban la alerta de emergencia.</p>
+          </div>
+          <div id="contacts-list" class="contacts-list"></div>
+        </div>
+      </div>
+
+      <!-- Map Tab -->
+      <div id="tab-map" class="tab-content">
+        <div class="map-container">
+          <div class="map-header">
+            <h2>Mapa en Vivo</h2>
+            <p>Ubicación en tiempo real del adulto mayor</p>
+          </div>
+          <div id="live-map"></div>
+          <div class="map-controls">
+            <button class="map-btn" onclick="centerMapOnUser()">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/></svg>
+              Mi Ubicación
+            </button>
+            <button class="map-btn" id="toggle-tracking-btn" onclick="toggleTrackingManual()">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>
+              Rastreo
+            </button>
+          </div>
+          <div id="tracking-status" class="tracking-status inactive">
+            <span class="tracking-dot"></span> Rastreo inactivo
+          </div>
+          <div class="location-history">
+            <h3>Historial de Ubicaciones</h3>
+            <div id="history-list" class="history-list">
+              <p style="color:var(--fg-muted);text-align:center;padding:1rem;">Sin historial de ubicaciones</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Channels Tab -->
+      <div id="tab-channels" class="tab-content">
+        <div class="channels-container">
+          <div class="channels-header">
+            <h2>Canales de Alerta</h2>
+            <p>Configurá cómo se envían las alertas a la familia</p>
+          </div>
+          <div id="channels-list"></div>
+          <button id="enable-push-btn" class="submit-btn" style="display:none;margin-top:1rem;">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+            Habilitar Notificaciones Push
+          </button>
+        </div>
+      </div>
+
+      <!-- Settings Tab -->
+      <div id="tab-settings" class="tab-content">
+        <div class="settings-container">
+          <h2>Configuración</h2>
+          <p class="settings-subtitle">Personalizá el mensaje de emergencia de SafeHeart</p>
+          <div class="info-box">
+            <h3>Variables disponibles:</h3>
+            <ul>
+              <li><strong>{TIME}</strong> - Fecha y hora actual</li>
+              <li><strong>{BATTERY}</strong> - Nivel de batería del dispositivo</li>
+              <li><strong>{LOCATION}</strong> - Enlace a Google Maps con la ubicación</li>
+            </ul>
+          </div>
+          <div class="settings-card">
+            <div class="settings-card-header">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+              <h3>Mensaje de Emergencia</h3>
+            </div>
+            <p class="settings-hint">Este mensaje se enviará automáticamente cuando el adulto mayor active la emergencia.</p>
+            <textarea id="emergency-message" rows="4" placeholder="Escribe tu mensaje..."></textarea>
+            <p class="char-count"><span id="char-count">0</span> caracteres (recomendado: menos de 160)</p>
+            <div class="settings-buttons">
+              <button id="save-message-btn" class="save-btn">Guardar Mensaje</button>
+              <button id="reset-message-btn" class="reset-btn">Restaurar</button>
+            </div>
+          </div>
+          <div class="info-box warning">
+            <h3>Información importante</h3>
+            <p>SafeHeart usa SMS para garantizar que el mensaje llegue incluso sin conexión a internet. El rastreo enviará la ubicación cada 10 segundos durante 3 minutos después de activar la emergencia.</p>
+          </div>
+        </div>
+      </div>
+    </main>
+
+    <!-- Bottom Nav -->
+    <nav class="app-nav">
+      <button class="nav-btn active" data-tab="emergency">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
+        <span>SOS</span>
+      </button>
+      <button class="nav-btn" data-tab="contacts">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+        <span>Contactos</span>
+        <span id="contacts-badge" class="nav-badge" style="display:none;">0</span>
+      </button>
+      <button class="nav-btn" data-tab="map">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"/><line x1="8" y1="2" x2="8" y2="18"/><line x1="16" y1="6" x2="16" y2="22"/></svg>
+        <span>Mapa</span>
+      </button>
+      <button class="nav-btn" data-tab="channels">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+        <span>Canales</span>
+      </button>
+      <button class="nav-btn" data-tab="settings">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+        <span>Config</span>
+      </button>
+    </nav>
+  </div>
+
+  <!-- Floating SOS -->
+  <button id="floating-sos" class="floating-sos" title="Mantené presionado 2 segundos para SOS">
+    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
+  </button>
+
+  <!-- PWA Banner -->
+  <div id="pwa-banner" class="pwa-banner">
+    <div class="pwa-content">
+      <div class="pwa-info">
+        <h3>Instalar SafeHeart</h3>
+        <p>Agregá la app a tu pantalla de inicio para acceso rápido</p>
+      </div>
+      <button id="pwa-install-btn" class="pwa-install-btn">Instalar</button>
+      <button id="pwa-close-btn" class="pwa-close">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+  </div>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+  <script src="app.js"></script>
+   <script>
+// ── Reloj en app ──
+function updateAppWatch() {
+  const now = new Date();
+  const h = String(now.getHours()).padStart(2,'0');
+  const m = String(now.getMinutes()).padStart(2,'0');
+  const el = document.getElementById('app-watch-time');
+  if (el) el.textContent = h + ':' + m;
+  const days = ['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'];
+  const months = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+  const dateEl = document.getElementById('app-watch-date');
+  if (dateEl) dateEl.textContent = days[now.getDay()] + ' ' + now.getDate() + ' ' + months[now.getMonth()];
+}
+updateAppWatch();
+setInterval(updateAppWatch, 1000);
+
+// ── BPM simulado ──
+let appBpm = 72;
+setInterval(() => {
+  appBpm += Math.floor(Math.random() * 5) - 2;
+  appBpm = Math.max(58, Math.min(90, appBpm));
+  const el = document.getElementById('app-bpm-value');
+  if (el) el.textContent = appBpm;
+}, 2000);
+
+// ── Mapa ──
+function centerMapOnUser() {
+  if (navigator.geolocation && typeof map !== 'undefined' && map) {
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        map.setView([pos.coords.latitude, pos.coords.longitude], 16);
+        if (userMarker) userMarker.setLatLng([pos.coords.latitude, pos.coords.longitude]);
+      },
+      () => alert('No se pudo obtener tu ubicación')
+    );
+  }
+}
+
+function toggleTrackingManual() {
+  const btn = document.getElementById('toggle-tracking-btn');
+  if (typeof trackingInterval !== 'undefined' && trackingInterval) {
+    stopTracking();
+    btn.classList.remove('active');
+  } else {
+    startTracking();
+    btn.classList.add('active');
+  }
+}
+
+// ── SafeHeart: Scroll progress bar (si existe) ──
+const scrollBar = document.getElementById('scroll-bar');
+if (scrollBar) {
+  window.addEventListener('scroll', () => {
+    const h = document.documentElement.scrollHeight - window.innerHeight;
+    scrollBar.style.width = (window.scrollY / h * 100) + '%';
+  }, { passive: true });
+}
+
+// ── SafeHeart: Navbar scroll ──
+const navbar = document.getElementById('navbar');
+const navLinks = document.querySelectorAll('.nav-link');
+const sections = document.querySelectorAll('section[id]');
+if (navbar) {
+  window.addEventListener('scroll', () => {
+    navbar.classList.toggle('scrolled', window.scrollY > 40);
+    let cur = '';
+    sections.forEach(s => { if (window.scrollY >= s.offsetTop - 140) cur = s.id; });
+    navLinks.forEach(a => {
+      a.classList.toggle('active', a.getAttribute('href') === '#' + cur);
+    });
+  }, { passive: true });
+}
+
+// ── SafeHeart: Mobile menu ──
+function toggleMobileMenu() {
+  const menu = document.getElementById('mobile-menu');
+  if (menu) menu.classList.toggle('open');
+}
+
+// ── SafeHeart: Smooth scroll ──
+document.querySelectorAll('a[href^="#"]').forEach(a => {
+  a.addEventListener('click', e => {
+    const t = document.querySelector(a.getAttribute('href'));
+    if (t) { e.preventDefault(); t.scrollIntoView({ behavior:'smooth', block:'start' }); }
+  });
+});
+
+// ── SafeHeart: Scroll reveal ──
+const revealObs = new IntersectionObserver((entries) => {
+  entries.forEach(e => { if (e.isIntersecting) e.target.classList.add('in'); });
+}, { threshold: 0.1, rootMargin: '0px 0px -50px 0px' });
+document.querySelectorAll('.reveal, .reveal-l, .reveal-r, .reveal-s').forEach(el => revealObs.observe(el));
+
+// ── SafeHeart: Animated counters ──
+const counterObs = new IntersectionObserver((entries) => {
+  entries.forEach(e => {
+    if (!e.isIntersecting || e.target.dataset.done) return;
+    e.target.dataset.done = '1';
+    const target = +e.target.dataset.target;
+    const suffix = e.target.dataset.suffix || '';
+    if (!target) return;
+    let start = null;
+    const step = ts => {
+      if (!start) start = ts;
+      const p = Math.min((ts - start) / 1400, 1);
+      e.target.innerHTML = Math.floor(p * target) + (suffix ? `<span>${suffix}</span>` : '');
+      if (p < 1) requestAnimationFrame(step);
+      else e.target.innerHTML = target + (suffix ? `<span>${suffix}</span>` : '');
+    };
+    requestAnimationFrame(step);
+  });
+}, { threshold: 0.5 });
+document.querySelectorAll('.stat-num[data-target]').forEach(el => counterObs.observe(el));
+
+// ── 🚨 BOTÓN DE EMERGENCIA ──
+const emergencyBtn = document.getElementById('app-emergency-btn');
+const progressEl = document.getElementById('app-progress');
+const statusSub = document.getElementById('app-status-subtitle');
+
+let holdInterval = null;
+let progressVal = 0;
+let sosTriggered = false;
+
+function triggerSOS() {
+  if (sosTriggered) return;
+  sosTriggered = true;
+
+  if (statusSub) {
+    statusSub.textContent = '🚨 ¡EMERGENCIA ACTIVADA!';
+    statusSub.style.color = 'var(--green)';
+  }
+
+  // Mostrar tarjetas flotantes
+  const fcLoc = document.getElementById('fc-loc');
+  const fcSms = document.getElementById('fc-sms');
+  const fcAlrt = document.getElementById('fc-alrt');
+  if (fcLoc) setTimeout(() => fcLoc.classList.add('show'), 300);
+  if (fcSms) setTimeout(() => fcSms.classList.add('show'), 800);
+  if (fcAlrt) setTimeout(() => fcAlrt.classList.add('show'), 1300);
+
+  // ─── 📨 Enviar a ntfy.sh ───
+  enviarNtfy(-34.6037, -58.3816);  // Coordenadas de ejemplo (Buenos Aires)
+
+  // Resetear después de 5 segundos
+  setTimeout(() => {
+    sosTriggered = false;
+    if (progressEl) progressEl.style.width = '0%';
+    if (statusSub) {
+      statusSub.textContent = 'Mantené presionado 3 segundos';
+      statusSub.style.color = '';
+    }
+    if (fcLoc) fcLoc.classList.remove('show');
+    if (fcSms) fcSms.classList.remove('show');
+    if (fcAlrt) fcAlrt.classList.remove('show');
+    progressVal = 0;
+  }, 5000);
+}
+
+// ── Función para iniciar la presión ──
+function startHoldGeneric() {
+  if (sosTriggered) return;
+  if (holdInterval) clearInterval(holdInterval);
+  progressVal = 0;
+  if (progressEl) progressEl.style.width = '0%';
+  if (statusSub) statusSub.textContent = 'Soltá para cancelar…';
+  console.log('⏳ Iniciando cuenta regresiva (1s)');
+
+  holdInterval = setInterval(() => {
+    progressVal = Math.min(progressVal + 100/30, 100);
+    if (progressEl) {
+      progressEl.style.width = progressVal + '%';
+      console.log(`📊 Progreso: ${Math.round(progressVal)}%`);
+    }
+    if (progressVal >= 100) {
+      clearInterval(holdInterval);
+      holdInterval = null;
+      console.log('✅ ¡Tiempo completado! Activando SOS...');
+      triggerSOS();
+    }
+  }, 100);
+}
+
+function cancelHoldGeneric() {
+  if (sosTriggered) return;
+  clearInterval(holdInterval);
+  holdInterval = null;
+  progressVal = 0;
+  if (progressEl) progressEl.style.width = '0%';
+  if (statusSub) statusSub.textContent = 'Mantené presionado 3 segundos';
+  console.log('🔄 Presión cancelada');
+}
+
+// ── Eventos clic izquierdo y táctil ──
+if (emergencyBtn) {
+  emergencyBtn.addEventListener('mousedown', (e) => {
+    if (e.button === 0) {
+      e.preventDefault();
+      startHoldGeneric();
+    }
+  });
+  emergencyBtn.addEventListener('mouseup', (e) => {
+    if (e.button === 0) cancelHoldGeneric();
+  });
+  emergencyBtn.addEventListener('mouseleave', cancelHoldGeneric);
+  emergencyBtn.addEventListener('touchstart', (e) => {
+    e.preventDefault();
+    startHoldGeneric();
+  });
+  emergencyBtn.addEventListener('touchend', (e) => {
+    e.preventDefault();
+    cancelHoldGeneric();
+  });
+  emergencyBtn.addEventListener('touchcancel', cancelHoldGeneric);
+}
+
+// ── ATAJO CON LA RUEDITA (clic medio) ──
+document.addEventListener('mousedown', (e) => {
+  if (e.button === 1) {
+    e.preventDefault();
+    e.stopPropagation();
+    if (holdInterval) cancelHoldGeneric();
+    startHoldGeneric();
+  }
+});
+
+document.addEventListener('mouseup', (e) => {
+  if (e.button === 1) {
+    cancelHoldGeneric();
+  }
+});
+
+document.addEventListener('mouseleave', () => {
+  if (holdInterval) cancelHoldGeneric();
+});
+
+document.addEventListener('auxclick', (e) => {
+  if (e.button === 1) e.preventDefault();
+});
+
+// ── 📨 ENVÍO A NTFY.SH (con mensaje modificable) ──
+let yaEnviado = false;
+
+function enviarNtfy(lat, lon) {
+  if (yaEnviado) return;
+  yaEnviado = true;
+
+  // ✏️ MODIFICÁ ACÁ EL TEXTO QUE QUERÉS QUE APAREZCA EN LA NOTIFICACIÓN
+  const mensajePersonalizado = "🚨 ¡EMERGENCIA! Necesito ayuda urgente. Por favor, contacten a mis emergencias.";
+
+  const mensajeCompleto = 
+    mensajePersonalizado + "\n" +
+    "Mi ubicación actual:\n" +
+    "https://maps.google.com/?q=" + lat + "," + lon;
+
+  fetch('https://ntfy.sh/SafeHeart', {
+    method: 'POST',
+    headers: {
+      'Title': '🚨 SOS SafeHeart',
+      'Priority': 'urgent',
+      'Tags': 'warning,red_circle,ambulance'
+    },
+    body: mensajeCompleto
+  })
+  .then(response => {
+    if (response.ok) {
+      console.log('✅ Notificación enviada a ntfy.sh');
+    } else {
+      console.error('❌ Error al enviar:', response.status);
+    }
+  })
+  .catch(error => {
+    console.error('❌ Error de red:', error);
+  });
+
+  if (statusSub) {
+    statusSub.textContent = '📨 ¡Notificación enviada!';
+    statusSub.style.color = 'var(--green)';
+  }
+
+  setTimeout(() => { yaEnviado = false; }, 10000);
+}
+
+// ── FAQ accordion ──
+document.querySelectorAll('.faq-question').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const item = btn.parentElement;
+    document.querySelectorAll('.faq-item').forEach(i => { if(i!==item) i.classList.remove('active'); });
+    item.classList.toggle('active');
+  });
+});
+
+// ── Mostrar tarjetas flotantes al cargar ──
+setTimeout(() => {
+  ['fc-loc','fc-sms','fc-alrt'].forEach((id,i) => {
+    setTimeout(() => { 
+      const el = document.getElementById(id); 
+      if(el) el.classList.add('show'); 
+    }, i*500);
+  });
+}, 2000);
+
+console.log('✅ SafeHeart: Ruedita y clic izquierdo con barra de progreso (sin tilde verde).');
+</script>
+</body>
+</html>
