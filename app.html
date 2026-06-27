@@ -308,6 +308,375 @@
   </div>
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
-  <script src="app.js"></script>
+  <script src="app.js">
+// ============================================================
+// SAFEHEART APP - SCRIPT COMPLETO (con ntfy.sh)
+// ============================================================
+
+// ── Reloj en app ──
+function updateAppWatch() {
+  const now = new Date();
+  const h = String(now.getHours()).padStart(2, '0');
+  const m = String(now.getMinutes()).padStart(2, '0');
+  const el = document.getElementById('app-watch-time');
+  if (el) el.textContent = h + ':' + m;
+  
+  const days = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
+  const months = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
+  const dateEl = document.getElementById('app-watch-date');
+  if (dateEl) {
+    dateEl.textContent = days[now.getDay()] + ' ' + now.getDate() + ' ' + months[now.getMonth()];
+  }
+}
+updateAppWatch();
+setInterval(updateAppWatch, 1000);
+
+// ── BPM simulado ──
+let appBpm = 72;
+setInterval(() => {
+  appBpm += Math.floor(Math.random() * 5) - 2;
+  appBpm = Math.max(58, Math.min(90, appBpm));
+  const el = document.getElementById('app-bpm-value');
+  if (el) el.textContent = appBpm;
+}, 2000);
+
+// ── Mapa ──
+function centerMapOnUser() {
+  if (navigator.geolocation && typeof map !== 'undefined' && map) {
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        map.setView([pos.coords.latitude, pos.coords.longitude], 16);
+        if (userMarker) userMarker.setLatLng([pos.coords.latitude, pos.coords.longitude]);
+      },
+      () => alert('No se pudo obtener tu ubicación')
+    );
+  }
+}
+
+function toggleTrackingManual() {
+  const btn = document.getElementById('toggle-tracking-btn');
+  if (typeof trackingInterval !== 'undefined' && trackingInterval) {
+    stopTracking();
+    btn.classList.remove('active');
+  } else {
+    startTracking();
+    btn.classList.add('active');
+  }
+}
+
+// ── SafeHeart: Scroll progress bar (si existe) ──
+const scrollBar = document.getElementById('scroll-bar');
+if (scrollBar) {
+  window.addEventListener('scroll', () => {
+    const h = document.documentElement.scrollHeight - window.innerHeight;
+    scrollBar.style.width = (window.scrollY / h * 100) + '%';
+  }, { passive: true });
+}
+
+// ── SafeHeart: Navbar scroll ──
+const navbar = document.getElementById('navbar');
+const navLinks = document.querySelectorAll('.nav-link');
+const sections = document.querySelectorAll('section[id]');
+if (navbar) {
+  window.addEventListener('scroll', () => {
+    navbar.classList.toggle('scrolled', window.scrollY > 40);
+    let cur = '';
+    sections.forEach(s => { if (window.scrollY >= s.offsetTop - 140) cur = s.id; });
+    navLinks.forEach(a => {
+      a.classList.toggle('active', a.getAttribute('href') === '#' + cur);
+    });
+  }, { passive: true });
+}
+
+// ── SafeHeart: Mobile menu ──
+function toggleMobileMenu() {
+  const menu = document.getElementById('mobile-menu');
+  if (menu) menu.classList.toggle('open');
+}
+
+// ── SafeHeart: Smooth scroll ──
+document.querySelectorAll('a[href^="#"]').forEach(a => {
+  a.addEventListener('click', e => {
+    const t = document.querySelector(a.getAttribute('href'));
+    if (t) { e.preventDefault(); t.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
+  });
+});
+
+// ── SafeHeart: Scroll reveal ──
+const revealObs = new IntersectionObserver((entries) => {
+  entries.forEach(e => { if (e.isIntersecting) e.target.classList.add('in'); });
+}, { threshold: 0.1, rootMargin: '0px 0px -50px 0px' });
+document.querySelectorAll('.reveal, .reveal-l, .reveal-r, .reveal-s').forEach(el => revealObs.observe(el));
+
+// ── SafeHeart: Animated counters ──
+const counterObs = new IntersectionObserver((entries) => {
+  entries.forEach(e => {
+    if (!e.isIntersecting || e.target.dataset.done) return;
+    e.target.dataset.done = '1';
+    const target = +e.target.dataset.target;
+    const suffix = e.target.dataset.suffix || '';
+    if (!target) return;
+    let start = null;
+    const step = ts => {
+      if (!start) start = ts;
+      const p = Math.min((ts - start) / 1400, 1);
+      e.target.innerHTML = Math.floor(p * target) + (suffix ? `<span>${suffix}</span>` : '');
+      if (p < 1) requestAnimationFrame(step);
+      else e.target.innerHTML = target + (suffix ? `<span>${suffix}</span>` : '');
+    };
+    requestAnimationFrame(step);
+  });
+}, { threshold: 0.5 });
+document.querySelectorAll('.stat-num[data-target]').forEach(el => counterObs.observe(el));
+
+// ── 🚨 BOTÓN DE EMERGENCIA ──
+const emergencyBtn = document.getElementById('app-emergency-btn');
+const progressEl = document.getElementById('app-progress');
+const statusSub = document.getElementById('app-status-subtitle');
+
+console.log('🔍 Elementos encontrados:', { emergencyBtn, progressEl, statusSub });
+
+let holdInterval = null;
+let progressVal = 0;
+let sosTriggered = false;
+
+function triggerSOS() {
+  console.log('🚨 ¡triggerSOS() ejecutada!');
+  if (sosTriggered) {
+    console.log('⛔ SOS ya activado, ignorando.');
+    return;
+  }
+  sosTriggered = true;
+
+  if (statusSub) {
+    statusSub.textContent = '🚨 ¡EMERGENCIA ACTIVADA!';
+    statusSub.style.color = 'var(--green)';
+  }
+
+  // Mostrar tarjetas flotantes
+  const fcLoc = document.getElementById('fc-loc');
+  const fcSms = document.getElementById('fc-sms');
+  const fcAlrt = document.getElementById('fc-alrt');
+  if (fcLoc) setTimeout(() => fcLoc.classList.add('show'), 300);
+  if (fcSms) setTimeout(() => fcSms.classList.add('show'), 800);
+  if (fcAlrt) setTimeout(() => fcAlrt.classList.add('show'), 1300);
+
+  // ─── 📨 Enviar a ntfy.sh ───
+  console.log('📨 Llamando a enviarNtfy con coordenadas fijas...');
+  enviarNtfy(-34.6037, -58.3816);
+
+  // Resetear después de 5 segundos
+  setTimeout(() => {
+    console.log('🔄 Reseteando estado de SOS...');
+    sosTriggered = false;
+    if (progressEl) progressEl.style.width = '0%';
+    if (statusSub) {
+      statusSub.textContent = 'Mantené presionado 3 segundos';
+      statusSub.style.color = '';
+    }
+    if (fcLoc) fcLoc.classList.remove('show');
+    if (fcSms) fcSms.classList.remove('show');
+    if (fcAlrt) fcAlrt.classList.remove('show');
+    progressVal = 0;
+  }, 5000);
+}
+
+// ── Función para iniciar la presión ──
+function startHoldGeneric() {
+  console.log('⏳ startHoldGeneric() llamada');
+  if (sosTriggered) {
+    console.log('⛔ SOS ya activado, no inicio cuenta.');
+    return;
+  }
+  if (holdInterval) {
+    console.log('⛔ Ya hay un intervalo activo, limpiando...');
+    clearInterval(holdInterval);
+  }
+  progressVal = 0;
+  if (progressEl) progressEl.style.width = '0%';
+  if (statusSub) statusSub.textContent = 'Soltá para cancelar…';
+  console.log('⏳ Iniciando cuenta regresiva (3 segundos)');
+
+  holdInterval = setInterval(() => {
+    progressVal = Math.min(progressVal + 100 / 30, 100);
+    if (progressEl) {
+      progressEl.style.width = progressVal + '%';
+      console.log(`📊 Progreso: ${Math.round(progressVal)}%`);
+    }
+    if (progressVal >= 100) {
+      clearInterval(holdInterval);
+      holdInterval = null;
+      console.log('✅ ¡Tiempo completado! Llamando a triggerSOS()...');
+      triggerSOS();
+    }
+  }, 100);
+}
+
+function cancelHoldGeneric() {
+  console.log('🔄 cancelHoldGeneric() llamada');
+  if (sosTriggered) {
+    console.log('⛔ SOS activado, no cancelo.');
+    return;
+  }
+  clearInterval(holdInterval);
+  holdInterval = null;
+  progressVal = 0;
+  if (progressEl) progressEl.style.width = '0%';
+  if (statusSub) statusSub.textContent = 'Mantené presionado 3 segundos';
+  console.log('🔄 Presión cancelada');
+}
+
+// ── Eventos clic izquierdo y táctil ──
+if (emergencyBtn) {
+  console.log('🔘 Configurando eventos del botón de emergencia');
+  emergencyBtn.addEventListener('mousedown', (e) => {
+    if (e.button === 0) {
+      e.preventDefault();
+      console.log('🖱️ mousedown (izquierdo)');
+      startHoldGeneric();
+    }
+  });
+  emergencyBtn.addEventListener('mouseup', (e) => {
+    if (e.button === 0) {
+      console.log('🖱️ mouseup (izquierdo)');
+      cancelHoldGeneric();
+    }
+  });
+  emergencyBtn.addEventListener('mouseleave', () => {
+    console.log('🖱️ mouseleave');
+    cancelHoldGeneric();
+  });
+  emergencyBtn.addEventListener('touchstart', (e) => {
+    e.preventDefault();
+    console.log('📱 touchstart');
+    startHoldGeneric();
+  });
+  emergencyBtn.addEventListener('touchend', (e) => {
+    e.preventDefault();
+    console.log('📱 touchend');
+    cancelHoldGeneric();
+  });
+  emergencyBtn.addEventListener('touchcancel', () => {
+    console.log('📱 touchcancel');
+    cancelHoldGeneric();
+  });
+} else {
+  console.error('❌ No se encontró el botón #app-emergency-btn');
+}
+
+// ── ATAJO CON LA RUEDITA (clic medio) ──
+document.addEventListener('mousedown', (e) => {
+  if (e.button === 1) {
+    e.preventDefault();
+    e.stopPropagation();
+    console.log('🖱️ clic medio (ruedita)');
+    if (holdInterval) cancelHoldGeneric();
+    startHoldGeneric();
+  }
+});
+
+document.addEventListener('mouseup', (e) => {
+  if (e.button === 1) {
+    console.log('🖱️ mouseup (medio)');
+    cancelHoldGeneric();
+  }
+});
+
+document.addEventListener('mouseleave', () => {
+  if (holdInterval) {
+    console.log('🖱️ mouseleave global');
+    cancelHoldGeneric();
+  }
+});
+
+document.addEventListener('auxclick', (e) => {
+  if (e.button === 1) e.preventDefault();
+});
+
+// ── 📨 ENVÍO A NTFY.SH (con logs y SIN emojis en headers) ──
+let yaEnviado = false;
+
+function enviarNtfy(lat, lon) {
+  if (yaEnviado) return;
+  yaEnviado = true;
+
+  console.log('📨 enviarNtfy() llamada con lat=' + lat + ' lon=' + lon);
+
+  // ✏️ MODIFICÁ ACÁ EL TEXTO QUE QUERÉS QUE APAREZCA EN LA NOTIFICACIÓN
+  const mensajePersonalizado = "🚨 ¡EMERGENCIA! Necesito ayuda urgente. Por favor, contacten a mis emergencias.";
+
+  const mensajeCompleto = 
+    mensajePersonalizado + "\n" +
+    "Mi ubicación actual:\n" +
+    "https://maps.google.com/?q=" + lat + "," + lon;
+
+  console.log('📤 Enviando a ntfy.sh:', mensajeCompleto);
+
+  // Los headers NO deben tener emojis ni caracteres especiales
+  fetch('https://ntfy.sh/SafeHeart', {
+    method: 'POST',
+    headers: {
+      'Title': 'SOS SafeHeart',          // ✅ sin emoji
+      'Priority': 'urgent',
+      'Tags': 'warning,red_circle,ambulance'
+    },
+    body: mensajeCompleto  // ✅ acá podés poner todos los emojis que quieras
+  })
+  .then(response => {
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    console.log('✅ Notificación enviada a ntfy.sh');
+    return response.json();
+  })
+  .then(data => {
+    console.log('📩 Respuesta del servidor:', data);
+  })
+  .catch(error => {
+    console.error('❌ Error al enviar a ntfy:', error);
+  })
+  .finally(() => {
+    setTimeout(() => { yaEnviado = false; }, 10000);
+  });
+}
+
+// ── Función de prueba (desde consola o botón) ──
+function testNtfy() {
+  console.log('🧪 Ejecutando testNtfy()');
+  fetch('https://ntfy.sh/SafeHeart', {
+    method: 'POST',
+    headers: { 'Title': 'Test', 'Priority': 'default' },
+    body: 'Mensaje de prueba desde el navegador.'
+  })
+  .then(r => r.json())
+  .then(data => {
+    console.log('✅ Prueba exitosa:', data);
+    alert('✅ Notificación de prueba enviada. Revisá si te llega.');
+  })
+  .catch(err => {
+    console.error('❌ Error en prueba:', err);
+    alert('❌ Error: ' + err.message);
+  });
+}
+
+// ── FAQ accordion ──
+document.querySelectorAll('.faq-question').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const item = btn.parentElement;
+    document.querySelectorAll('.faq-item').forEach(i => { if (i !== item) i.classList.remove('active'); });
+    item.classList.toggle('active');
+  });
+});
+
+// ── Mostrar tarjetas flotantes al cargar ──
+setTimeout(() => {
+  ['fc-loc', 'fc-sms', 'fc-alrt'].forEach((id, i) => {
+    setTimeout(() => {
+      const el = document.getElementById(id);
+      if (el) el.classList.add('show');
+    }, i * 500);
+  });
+}, 2000);
+
+console.log('✅ SafeHeart: Código cargado. Esperando interacción...');
+  </script>
 </body>
 </html>
