@@ -494,6 +494,67 @@ function triggerSOS() {
     }
   }, 5000);
 }
+let holdInterval = null;
+let progressVal = 0;
+let sosTriggered = false;
+
+function startHoldGeneric() {
+  if (sosTriggered) return;
+  if (holdInterval) clearInterval(holdInterval);
+  progressVal = 0;
+  const progressEl = document.getElementById('app-progress');
+  const statusSub = document.getElementById('app-status-subtitle');
+  if (progressEl) progressEl.style.width = '0%';
+  if (statusSub) statusSub.textContent = 'Soltá para cancelar…';
+  console.log('⏳ Iniciando cuenta regresiva (3 segundos)');
+
+  holdInterval = setInterval(() => {
+    progressVal = Math.min(progressVal + 100/30, 100);
+    const progressEl = document.getElementById('app-progress');
+    if (progressEl) progressEl.style.width = progressVal + '%';
+    console.log(`📊 Progreso: ${Math.round(progressVal)}%`);
+    if (progressVal >= 100) {
+      clearInterval(holdInterval);
+      holdInterval = null;
+      console.log('✅ ¡Tiempo completado! Llamando a triggerSOS()...');
+      triggerSOS();
+    }
+  }, 100);
+}
+
+function cancelHoldGeneric() {
+  if (sosTriggered) return;
+  clearInterval(holdInterval);
+  holdInterval = null;
+  progressVal = 0;
+  const progressEl = document.getElementById('app-progress');
+  const statusSub = document.getElementById('app-status-subtitle');
+  if (progressEl) progressEl.style.width = '0%';
+  if (statusSub) statusSub.textContent = 'Mantené presionado 3 segundos';
+  console.log('🔄 Presión cancelada');
+}
+
+function triggerSOS() {
+  if (sosTriggered) return;
+  sosTriggered = true;
+  const statusSub = document.getElementById('app-status-subtitle');
+  if (statusSub) {
+    statusSub.textContent = '🚨 ¡EMERGENCIA ACTIVADA!';
+    statusSub.style.color = 'var(--green)';
+  }
+  console.log('📨 Llamando a enviarNtfy...');
+  enviarNtfy(-34.6037, -58.3816); // Coordenadas fijas (o las que quieras)
+
+  setTimeout(() => {
+    sosTriggered = false;
+    const progressEl = document.getElementById('app-progress');
+    if (progressEl) progressEl.style.width = '0%';
+    if (statusSub) {
+      statusSub.textContent = 'Mantené presionado 3 segundos';
+      statusSub.style.color = '';
+    }
+  }, 5000);
+}
 
   // Mostrar tarjetas flotantes
   const fcLoc = document.getElementById('fc-loc');
