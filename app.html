@@ -308,7 +308,7 @@
   </div>
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
-  <script src="app.js">
+  <script>
 // ============================================================
 // SAFEHEART APP - SCRIPT COMPLETO (con ntfy.sh)
 // ============================================================
@@ -429,134 +429,76 @@ const counterObs = new IntersectionObserver((entries) => {
 }, { threshold: 0.5 });
 document.querySelectorAll('.stat-num[data-target]').forEach(el => counterObs.observe(el));
 
-// ── 🚨 BOTÓN DE EMERGENCIA ──
+// ============================================================
+// 🚨 BOTÓN DE EMERGENCIA Y ATAJO CON RUEDITA
+// ============================================================
+
+// Elementos del DOM
 const emergencyBtn = document.getElementById('app-emergency-btn');
 const progressEl = document.getElementById('app-progress');
 const statusSub = document.getElementById('app-status-subtitle');
 
 console.log('🔍 Elementos encontrados:', { emergencyBtn, progressEl, statusSub });
+
+// Variables de estado (UN SOLO LUGAR)
 let holdInterval = null;
 let progressVal = 0;
 let sosTriggered = false;
+let yaEnviado = false;
 
-function startHoldGeneric() {
-  if (sosTriggered) return;
-  if (holdInterval) clearInterval(holdInterval);
-  progressVal = 0;
-  const progressEl = document.getElementById('app-progress');
-  const statusSub = document.getElementById('app-status-subtitle');
-  if (progressEl) progressEl.style.width = '0%';
-  if (statusSub) statusSub.textContent = 'Soltá para cancelar…';
-  console.log('⏳ Iniciando cuenta regresiva (3 segundos)');
+// ── Función para enviar a ntfy.sh ──
+function enviarNtfy(lat, lon) {
+  if (yaEnviado) return;
+  yaEnviado = true;
 
-  holdInterval = setInterval(() => {
-    progressVal = Math.min(progressVal + 100/30, 100);
-    const progressEl = document.getElementById('app-progress');
-    if (progressEl) progressEl.style.width = progressVal + '%';
-    if (progressVal >= 100) {
-      clearInterval(holdInterval);
-      holdInterval = null;
-      console.log('✅ ¡Tiempo completado! Llamando a triggerSOS()...');
-      triggerSOS();
-    }
-  }, 100);
+  console.log('📨 enviarNtfy() llamada con lat=' + lat + ' lon=' + lon);
+
+  const mensajePersonalizado = "🚨 ¡EMERGENCIA! Necesito ayuda urgente. Por favor, contacten a mis emergencias.";
+  const mensajeCompleto = 
+    mensajePersonalizado + "\n" +
+    "Mi ubicación actual:\n" +
+    "https://maps.google.com/?q=" + lat + "," + lon;
+
+  console.log('📤 Enviando a ntfy.sh:', mensajeCompleto);
+
+  fetch('https://ntfy.sh/SafeHeart', {
+    method: 'POST',
+    headers: {
+      'Title': 'SOS SafeHeart',
+      'Priority': 'urgent',
+      'Tags': 'warning,red_circle,ambulance'
+    },
+    body: mensajeCompleto
+  })
+  .then(response => {
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    console.log('✅ Notificación enviada a ntfy.sh');
+    return response.json();
+  })
+  .then(data => {
+    console.log('📩 Respuesta del servidor:', data);
+  })
+  .catch(error => {
+    console.error('❌ Error al enviar a ntfy:', error);
+  })
+  .finally(() => {
+    setTimeout(() => { yaEnviado = false; }, 10000);
+  });
 }
 
-function cancelHoldGeneric() {
+// ── triggerSOS (activa la emergencia) ──
+function triggerSOS() {
   if (sosTriggered) return;
-  clearInterval(holdInterval);
-  holdInterval = null;
-  progressVal = 0;
-  const progressEl = document.getElementById('app-progress');
-  const statusSub = document.getElementById('app-status-subtitle');
-  if (progressEl) progressEl.style.width = '0%';
-  if (statusSub) statusSub.textContent = 'Mantené presionado 3 segundos';
-  console.log('🔄 Presión cancelada');
+  sosTriggered = true;
+
+  console.log('🚨 triggerSOS() ejecutada');
   
-function triggerSOS() {
-  if (sosTriggered) return;
-  sosTriggered = true;
-  const statusSub = document.getElementById('app-status-subtitle');
   if (statusSub) {
     statusSub.textContent = '🚨 ¡EMERGENCIA ACTIVADA!';
     statusSub.style.color = 'var(--green)';
   }
-  console.log('📨 Llamando a enviarNtfy...');
-  enviarNtfy(-34.6037, -58.3816);  // o con coordenadas reales si tenés GPS
 
-  setTimeout(() => {
-    sosTriggered = false;
-    const progressEl = document.getElementById('app-progress');
-    if (progressEl) progressEl.style.width = '0%';
-    if (statusSub) {
-      statusSub.textContent = 'Mantené presionado 3 segundos';
-      statusSub.style.color = '';
-    }
-  }, 5000);
-}
-let holdInterval = null;
-let progressVal = 0;
-let sosTriggered = false;
-
-function startHoldGeneric() {
-  if (sosTriggered) return;
-  if (holdInterval) clearInterval(holdInterval);
-  progressVal = 0;
-  const progressEl = document.getElementById('app-progress');
-  const statusSub = document.getElementById('app-status-subtitle');
-  if (progressEl) progressEl.style.width = '0%';
-  if (statusSub) statusSub.textContent = 'Soltá para cancelar…';
-  console.log('⏳ Iniciando cuenta regresiva (3 segundos)');
-
-  holdInterval = setInterval(() => {
-    progressVal = Math.min(progressVal + 100/30, 100);
-    const progressEl = document.getElementById('app-progress');
-    if (progressEl) progressEl.style.width = progressVal + '%';
-    console.log(`📊 Progreso: ${Math.round(progressVal)}%`);
-    if (progressVal >= 100) {
-      clearInterval(holdInterval);
-      holdInterval = null;
-      console.log('✅ ¡Tiempo completado! Llamando a triggerSOS()...');
-      triggerSOS();
-    }
-  }, 100);
-}
-
-function cancelHoldGeneric() {
-  if (sosTriggered) return;
-  clearInterval(holdInterval);
-  holdInterval = null;
-  progressVal = 0;
-  const progressEl = document.getElementById('app-progress');
-  const statusSub = document.getElementById('app-status-subtitle');
-  if (progressEl) progressEl.style.width = '0%';
-  if (statusSub) statusSub.textContent = 'Mantené presionado 3 segundos';
-  console.log('🔄 Presión cancelada');
-}
-
-function triggerSOS() {
-  if (sosTriggered) return;
-  sosTriggered = true;
-  const statusSub = document.getElementById('app-status-subtitle');
-  if (statusSub) {
-    statusSub.textContent = '🚨 ¡EMERGENCIA ACTIVADA!';
-    statusSub.style.color = 'var(--green)';
-  }
-  console.log('📨 Llamando a enviarNtfy...');
-  enviarNtfy(-34.6037, -58.3816); // Coordenadas fijas (o las que quieras)
-
-  setTimeout(() => {
-    sosTriggered = false;
-    const progressEl = document.getElementById('app-progress');
-    if (progressEl) progressEl.style.width = '0%';
-    if (statusSub) {
-      statusSub.textContent = 'Mantené presionado 3 segundos';
-      statusSub.style.color = '';
-    }
-  }, 5000);
-}
-
-  // Mostrar tarjetas flotantes
+  // Mostrar tarjetas flotantes (si existen)
   const fcLoc = document.getElementById('fc-loc');
   const fcSms = document.getElementById('fc-sms');
   const fcAlrt = document.getElementById('fc-alrt');
@@ -564,7 +506,6 @@ function triggerSOS() {
   if (fcSms) setTimeout(() => fcSms.classList.add('show'), 800);
   if (fcAlrt) setTimeout(() => fcAlrt.classList.add('show'), 1300);
 
-  // ─── 📨 Enviar a ntfy.sh ───
   console.log('📨 Llamando a enviarNtfy con coordenadas fijas...');
   enviarNtfy(-34.6037, -58.3816);
 
@@ -584,7 +525,7 @@ function triggerSOS() {
   }, 5000);
 }
 
-// ── Función para iniciar la presión ──
+// ── startHoldGeneric (inicia la cuenta regresiva) ──
 function startHoldGeneric() {
   console.log('⏳ startHoldGeneric() llamada');
   if (sosTriggered) {
@@ -601,7 +542,7 @@ function startHoldGeneric() {
   console.log('⏳ Iniciando cuenta regresiva (3 segundos)');
 
   holdInterval = setInterval(() => {
-    progressVal = Math.min(progressVal + 100 / 30, 100);
+    progressVal = Math.min(progressVal + 100/30, 100);
     if (progressEl) {
       progressEl.style.width = progressVal + '%';
       console.log(`📊 Progreso: ${Math.round(progressVal)}%`);
@@ -615,6 +556,7 @@ function startHoldGeneric() {
   }, 100);
 }
 
+// ── cancelHoldGeneric (cancela la cuenta regresiva) ──
 function cancelHoldGeneric() {
   console.log('🔄 cancelHoldGeneric() llamada');
   if (sosTriggered) {
@@ -629,7 +571,7 @@ function cancelHoldGeneric() {
   console.log('🔄 Presión cancelada');
 }
 
-// ── Eventos clic izquierdo y táctil ──
+// ── Eventos del botón de emergencia (clic izquierdo y táctil) ──
 if (emergencyBtn) {
   console.log('🔘 Configurando eventos del botón de emergencia');
   emergencyBtn.addEventListener('mousedown', (e) => {
@@ -667,88 +609,32 @@ if (emergencyBtn) {
   console.error('❌ No se encontró el botón #app-emergency-btn');
 }
 
-// ── ATAJO CON LA RUEDITA (clic medio) en cualquier lugar ──
+// ── ATAJO CON LA RUEDITA (clic medio) EN TODA LA PÁGINA ──
 document.addEventListener('mousedown', (e) => {
-  if (e.button === 1) {  // 1 = botón medio
+  if (e.button === 1) {
     e.preventDefault();
     e.stopPropagation();
     console.log('🖱️ clic medio (ruedita) detectado');
-    // Iniciar la cuenta regresiva (3 segundos)
-    if (typeof startHoldGeneric === 'function') {
-      startHoldGeneric();
-    } else {
-      console.error('❌ startHoldGeneric no está definida');
-    }
+    startHoldGeneric();
   }
 });
 
 document.addEventListener('mouseup', (e) => {
   if (e.button === 1) {
     console.log('🖱️ mouseup (medio)');
-    if (typeof cancelHoldGeneric === 'function') {
-      cancelHoldGeneric();
-    }
-  }
-});
-
-// Si el mouse sale de la ventana, cancelar
-document.addEventListener('mouseleave', () => {
-  if (typeof cancelHoldGeneric === 'function') {
     cancelHoldGeneric();
   }
 });
 
-// Prevenir el menú contextual del clic medio
+document.addEventListener('mouseleave', () => {
+  cancelHoldGeneric();
+});
+
 document.addEventListener('auxclick', (e) => {
   if (e.button === 1) e.preventDefault();
 });
 
-// ── 📨 ENVÍO A NTFY.SH (con logs y SIN emojis en headers) ──
-let yaEnviado = false;
-
-function enviarNtfy(lat, lon) {
-  if (yaEnviado) return;
-  yaEnviado = true;
-
-  console.log('📨 enviarNtfy() llamada con lat=' + lat + ' lon=' + lon);
-
-  // ✏️ MODIFICÁ ACÁ EL TEXTO QUE QUERÉS QUE APAREZCA EN LA NOTIFICACIÓN
-  const mensajePersonalizado = "🚨 ¡EMERGENCIA! Necesito ayuda urgente. Por favor, contacten a mis emergencias.";
-
-  const mensajeCompleto = 
-    mensajePersonalizado + "\n" +
-    "Mi ubicación actual:\n" +
-    "https://maps.google.com/?q=" + lat + "," + lon;
-
-  console.log('📤 Enviando a ntfy.sh:', mensajeCompleto);
-
-  // Los headers NO deben tener emojis ni caracteres especiales
-  fetch('https://ntfy.sh/SafeHeart', {
-    method: 'POST',
-    headers: {
-      'Title': 'SOS SafeHeart',          // ✅ sin emoji
-      'Priority': 'urgent',
-      'Tags': 'warning,red_circle,ambulance'
-    },
-    body: mensajeCompleto  // ✅ acá podés poner todos los emojis que quieras
-  })
-  .then(response => {
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    console.log('✅ Notificación enviada a ntfy.sh');
-    return response.json();
-  })
-  .then(data => {
-    console.log('📩 Respuesta del servidor:', data);
-  })
-  .catch(error => {
-    console.error('❌ Error al enviar a ntfy:', error);
-  })
-  .finally(() => {
-    setTimeout(() => { yaEnviado = false; }, 10000);
-  });
-}
-
-// ── Función de prueba (desde consola o botón) ──
+// ── Función de prueba (desde consola) ──
 function testNtfy() {
   console.log('🧪 Ejecutando testNtfy()');
   fetch('https://ntfy.sh/SafeHeart', {
@@ -787,6 +673,6 @@ setTimeout(() => {
 }, 2000);
 
 console.log('✅ SafeHeart: Código cargado. Esperando interacción...');
-  </script>
+</script>
 </body>
 </html>
